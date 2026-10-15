@@ -1,0 +1,120 @@
+/* Presentación (pantalla del auditorio). Identidad: Gobernación de Nariño. */
+:root {
+  --verde: #10A13B;
+  --amarillo: #FFD500;
+  --azul: #003366;
+  --rojo: #E52928;
+  --gris: #383838;
+  --font-title: 'Hind Madurai', 'Segoe UI', system-ui, sans-serif;
+  --font-text: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden; }
+body { font-family: var(--font-text); -webkit-font-smoothing: antialiased; }
+body.is-running.hide-cursor { cursor: none; }
+
+#stage { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+
+.black {
+  position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none;
+  transition: opacity .45s ease; z-index: 5;
+}
+.black.is-on { opacity: 1; }
+
+/* HUD */
+.hud {
+  position: fixed; right: 18px; bottom: 16px; z-index: 6;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  transition: opacity .3s ease; pointer-events: none;
+}
+.hud.is-hidden { opacity: 0; }
+.hud-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px; border-radius: 999px;
+  background: rgba(0, 0, 0, .38); backdrop-filter: blur(6px);
+  font-size: 14px; font-weight: 600; letter-spacing: .02em;
+}
+.hud-icon { width: 18px; height: 18px; display: inline-flex; color: rgba(255, 255, 255, .35); transition: color .2s; }
+.hud-icon svg { width: 100%; height: 100%; fill: currentColor; }
+.hud-icon[data-state="on"] { color: #4CD47A; }
+.hud-icon[data-state="listening"] { color: var(--amarillo); }
+.hud-icon[data-state="loading"] { color: var(--amarillo); animation: pulse 1s ease-in-out infinite; }
+.hud-icon[data-state="error"], .hud-icon[data-state="offline"] { color: #FF5A5A; }
+.hud-scene { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
+.hud-pause { color: var(--amarillo); }
+.hud-flash {
+  padding: 6px 14px; border-radius: 999px; background: rgba(0, 0, 0, .55);
+  font-size: 15px; font-weight: 600; opacity: 0; transform: translateY(6px);
+  transition: opacity .25s ease, transform .25s ease;
+}
+.hud-flash.is-on { opacity: 1; transform: none; }
+@keyframes pulse { 50% { opacity: .35; } }
+
+/* Pantalla de inicio */
+.start {
+  position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px;
+  background:
+    radial-gradient(1200px 700px at 15% 110%, rgba(16, 161, 59, .45), transparent 60%),
+    radial-gradient(900px 600px at 110% -10%, rgba(0, 51, 102, .7), transparent 60%),
+    rgba(4, 10, 8, .92);
+  transition: opacity .5s ease, visibility .5s;
+  overflow-y: auto;
+}
+.start.is-hidden { opacity: 0; visibility: hidden; }
+.start-card { width: min(580px, 100%); }
+.start-brand {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 18px;
+  font-weight: 600; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: rgba(255, 255, 255, .85);
+}
+.start-brand .bar { width: 36px; height: 4px; background: var(--amarillo); border-radius: 2px; }
+.start h1 { font-family: var(--font-title); font-weight: 700; font-size: clamp(30px, 5vw, 46px); line-height: 1.05; margin: 0 0 12px; }
+.start-lead { font-size: 18px; line-height: 1.45; color: rgba(255, 255, 255, .82); margin: 0 0 22px; font-style: italic; }
+.start-msg { min-height: 1.4em; margin: 0 0 10px; color: rgba(255, 255, 255, .85); }
+.start-msg.is-error { color: #FF8A8A; }
+.start-hint { font-size: 14px; color: rgba(255, 255, 255, .6); line-height: 1.6; margin: 18px 0 0; }
+.start-links { display: flex; gap: 18px; margin-top: 14px; font-size: 15px; }
+.start-links a { color: var(--amarillo); text-decoration: none; border-bottom: 1px solid transparent; }
+.start-links a:hover, .start-links a:focus-visible { border-bottom-color: currentColor; }
+.start-links a.is-highlight { font-weight: 700; }
+kbd {
+  font-family: var(--font-text); font-size: 12px; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .08);
+}
+
+.checks { list-style: none; padding: 0; margin: 0 0 22px; display: grid; gap: 8px; }
+.checks li { position: relative; padding-left: 28px; font-size: 15px; color: rgba(255, 255, 255, .88); }
+.checks li small { display: block; color: rgba(255, 255, 255, .55); font-size: 13px; }
+.checks li::before {
+  position: absolute; left: 0; top: 1px; width: 18px; height: 18px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700; content: '…';
+  background: rgba(255, 255, 255, .15); color: #fff;
+}
+.checks li[data-state="ok"]::before { content: '✓'; background: var(--verde); }
+.checks li[data-state="warn"]::before { content: '!'; background: var(--amarillo); color: #000; }
+.checks li[data-state="error"]::before { content: '✕'; background: var(--rojo); }
+
+.btn {
+  font-family: var(--font-text); font-weight: 700; font-size: 16px; border: 0; cursor: pointer;
+  border-radius: 10px; padding: 12px 22px; transition: transform .1s ease, filter .15s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn-primary { background: var(--amarillo); color: #000; }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.05); }
+.btn-lg { font-size: 19px; padding: 15px 30px; }
+.btn:focus-visible, input:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+.login { display: grid; gap: 12px; margin: 0 0 18px; }
+.login label { display: grid; gap: 4px; font-size: 14px; color: rgba(255, 255, 255, .8); }
+.login input {
+  font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .08); color: #fff;
+}
+.form-error { color: #FF8A8A; margin: 0; min-height: 1.2em; font-size: 14px; }
+.noscript { position: fixed; inset: 0; display: grid; place-items: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .start, .hud-flash, .black { transition: none; }
+}

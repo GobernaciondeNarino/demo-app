@@ -1,0 +1,9 @@
+/* Tipografías institucionales (Manual de Identidad Visual, Gobernación de Nariño):
+   Hind Madurai (principal) y Source Sans 3 (secundaria). Licencia SIL OFL 1.1.
+   Se sirven localmente para que la presentación funcione sin internet. */
+@font-face { font-family: 'Hind Madurai'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/hind-madurai-400.woff2') format('woff2'); }
+@font-face { font-family: 'Hind Madurai'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/hind-madurai-500.woff2') format('woff2'); }
+@font-face { font-family: 'Hind Madurai'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/hind-madurai-600.woff2') format('woff2'); }
+@font-face { font-family: 'Hind Madurai'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/hind-madurai-700.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-style: normal; font-weight: 400 700; font-display: swap; src: url('../fonts/source-sans-3.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-style: italic; font-weight: 400 700; font-display: swap; src: url('../fonts/source-sans-3-italic.woff2') format('woff2'); }

@@ -1,0 +1,49 @@
+# Presentación IA interactiva — reglas para Apache (Plesk).
+# Funciona en la raíz del dominio o en cualquier subcarpeta.
+
+Options -Indexes
+DirectoryIndex index.html index.php
+AddDefaultCharset utf-8
+
+<IfModule mod_mime.c>
+  AddType text/javascript .js .mjs
+  AddType application/wasm .wasm
+  AddType font/woff2 .woff2
+  AddType application/octet-stream .task
+</IfModule>
+
+# Archivos que nunca deben descargarse (.env, ocultos, notas, bloqueos).
+<FilesMatch "(^\.|\.(env|md|lock|log|sh|bak|tmp|json\.lock)$|^(composer|package|package-lock)\.json$)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Carpetas internas.
+RedirectMatch 404 /(\.git|tests)(/|$)
+RedirectMatch 404 /wj-content/data(/|$)
+RedirectMatch 404 /wj-admin/(lib|cache)(/|$)
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "same-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-Robots-Tag "noindex, nofollow"
+  Header always set Permissions-Policy "camera=(self), microphone=(self), fullscreen=(self), autoplay=(self), speaker-selection=(self)"
+  # Siempre revalidar HTML, JS y CSS: tras actualizar el sitio no quedan versiones viejas.
+  <FilesMatch "\.(html|php|js|mjs|css)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+# Forzar HTTPS (la cámara y el micrófono solo funcionan con HTTPS).
+# Si Plesk ya redirige a HTTPS (recomendado: "Redirección SEO 301 a HTTPS"), deje esto comentado.
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteCond %{HTTPS} !=on
+#   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>

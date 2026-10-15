@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#000000">
+  <title>Presentación IA</title>
+  <link rel="stylesheet" href="wj-includes/css/fonts.css">
+  <link rel="stylesheet" href="wj-includes/css/presentation.css">
+  <script src="wj-includes/vendor/gsap.min.js" defer></script>
+  <script type="module" src="wj-includes/presentation.js"></script>
+</head>
+<body>
+  <canvas id="stage" aria-label="Escena de la presentación"></canvas>
+  <div id="black" class="black" aria-hidden="true"></div>
+  <div id="hud" class="hud" role="status"></div>
+
+  <section id="start" class="start" aria-labelledby="start-title">
+    <div class="start-card">
+      <p class="start-brand"><span class="bar"></span>Gobernación de Nariño</p>
+      <h1 id="start-title">Presentación IA</h1>
+      <p class="start-lead">Ñaño, el asistente de IA, controla las escenas con la voz, gestos, AirPods y el teclado o clicker.</p>
+
+      <form id="login-form" class="login" hidden autocomplete="on">
+        <label>Usuario <input name="username" autocomplete="username" required></label>
+        <label>Contraseña <input name="password" type="password" autocomplete="current-password" required></label>
+        <p class="form-error" role="alert"></p>
+        <button type="submit" class="btn btn-primary">Iniciar sesión</button>
+      </form>
+
+      <p id="start-msg" class="start-msg" role="status"></p>
+      <ul id="start-checks" class="checks"></ul>
+      <button id="start-btn" class="btn btn-primary btn-lg" hidden disabled>Iniciar presentación</button>
+      <p class="start-hint">Se pedirá permiso para el micrófono y la cámara.
+        Atajos: <kbd>→</kbd> siguiente · <kbd>←</kbd> anterior · <kbd>B</kbd> pantalla negra · <kbd>H</kbd> HUD · <kbd>F</kbd> pantalla completa</p>
+      <nav class="start-links">
+        <a href="presentador.html" target="_blank" rel="noopener">Vista de presentador</a>
+        <a id="admin-link" href="wj-admin/" target="_blank" rel="noopener">Panel admin</a>
+      </nav>
+    </div>
+  </section>
+
+  <noscript><p class="noscript">Esta presentación necesita JavaScript (Google Chrome recomendado).</p></noscript>
+</body>
+</html>

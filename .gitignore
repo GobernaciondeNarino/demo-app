@@ -1,0 +1,14 @@
+# Datos privados generados en el servidor (llaves, usuarios, configuración).
+wj-content/data/*
+!wj-content/data/.htaccess
+!wj-content/data/index.php
+!wj-content/data/web.config
+
+# Audios generados por ElevenLabs.
+wj-admin/cache/tts/*
+!wj-admin/cache/tts/.gitkeep
+
+.env
+node_modules
+tests/output/
+.DS_Store
