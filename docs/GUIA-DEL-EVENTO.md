@@ -26,11 +26,27 @@
    - Clicker: → y ←.
    - Voz: «Ñaño, siguiente» y «Ñaño, atrás». Debe sonar la confirmación por los parlantes.
    - Hablar normal: «en la siguiente parte…» **no** debe avanzar.
-   - Gesto: swipe a la izquierda (y puño sostenido).
+   - Gestos: puño derecho quieto 1 s → siguiente; puño izquierdo quieto 1 s → anterior. Hable moviendo las manos un minuto: no debe cambiar nada.
+   - Película: entre a la escena de la película y verifique que arranca a los 5 s y que → la deja (no la adelanta).
    - AirPods: doble toque → siguiente; triple toque → anterior.
    - Recordatorio: en una escena con dato clave, diga «Ñaño, siguiente» sin mencionarlo: debe oírlo en los AirPods y verlo en la vista de presentador. Diga «Ñaño, continuar igual».
 7. Vista de presentador › **Reiniciar cronómetro** justo antes de empezar (el cronómetro arranca con «Iniciar presentación»).
 8. Panel › **Monitor en vivo** abierto en otra pestaña (útil para quien le ayude con la técnica).
+
+## Cómo hacer los gestos
+
+- **Siguiente**: levante la mano **derecha**, cierre el puño y déjelo **quieto** ~1 s (el anillo del HUD se llena).
+- **Anterior**: lo mismo con la mano **izquierda**.
+- Si mueve la mano mientras sostiene el puño, el reloj vuelve a cero: por eso hablar gesticulando no cambia de escena.
+- Después de un gesto hay 2 s de enfriamiento; para repetir, abra la mano y vuelva a cerrarla.
+- Ajuste en el panel (Gestos): tiempo de quietud, movimiento permitido y la zona activa (suba el borde inferior hasta el pecho para ignorar las manos bajas).
+- Si la vista previa muestra las manos al revés, active «Invertir manos».
+
+## Películas web
+
+- Suba la carpeta de cada película (con su `index.html`) junto a la presentación: `/ctIA-26/fagosEvo/`.
+- Escenas › Tipo «Película…» › *Elegir película o archivo…* › elija la carpeta. Retraso de inicio por escena (5 s por defecto).
+- Si la película carga librerías desde internet (por ejemplo three.js desde cdn.jsdelivr.net), necesita conexión. Para ensayar sin internet, copie esas librerías dentro de la carpeta de la película.
 
 ## Durante la ponencia
 

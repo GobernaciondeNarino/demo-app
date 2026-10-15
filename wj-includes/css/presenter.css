@@ -51,6 +51,9 @@ h2:not(:first-child) { margin-top: 18px; }
 .scene-num { font-family: var(--font-title); font-weight: 700; font-size: 44px; line-height: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
 .scene-title { font-size: clamp(24px, 4vw, 38px); line-height: 1.1; overflow-wrap: anywhere; }
 .scene-block { margin: 0 0 2px; color: var(--muted); font-size: 15px; }
+.scene-media { margin: 6px 0 0; font-weight: 700; font-size: 16px; color: var(--muted); }
+.scene-media[data-state="waiting"] { color: var(--amarillo); }
+.scene-media[data-state="playing"] { color: var(--verde-claro); }
 
 .clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .clock-label { font-size: 13px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); font-weight: 600; }

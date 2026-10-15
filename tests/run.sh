@@ -17,6 +17,8 @@ tar -C "$ROOT" \
   --exclude='./wj-content/data/keys.php' --exclude='./wj-content/data/store-*' --exclude='./wj-content/data/canary.json' \
   --exclude='./wj-admin/cache/tts/*.mp3' \
   -cf - . | tar -C "$SITE" -xf -
+# Una «película» web en una carpeta junto a la presentación (como /ctIA-26/fagosEvo/).
+cp -r "$ROOT/tests/fixtures/peliculaDemo" "$SITE/peliculaDemo"
 
 cleanup() { kill "${PIDS[@]}" 2>/dev/null || true; }
 PIDS=()

@@ -30,13 +30,16 @@ Módulos ES nativos, sin compilación. `index.html` carga `presentation.js`, que
 | Módulo | Responsabilidad |
 |---|---|
 | `core/CommandBus.js` | Único punto de control. `{action, arg, source, confidence}`. Cooldown global, cola (máx. 1) durante transiciones, deduplicación de comandos remotos (llegan por servidor y por BroadcastChannel), registro. |
-| `core/SceneManager.js` | Instancia escenas (`init/enter/update/exit/dispose`), precarga ±1, dibuja saliente y entrante en dos `WebGLRenderTarget` y anima `progress` con GSAP (`power2.inOut`). Aplica configuración nueva sin recargar (la difiere si hay una transición en curso). |
+| `core/SceneManager.js` | Instancia escenas (`init/enter/begin/update/leave/exit/dispose`; `begin` solo cuando la presentación está en vivo), precarga ±1, dibuja saliente y entrante en dos `WebGLRenderTarget` y anima `progress` con GSAP (`power2.inOut`). Aplica configuración nueva sin recargar (la difiere si hay una transición en curso). |
 | `core/TransitionPass.js` | Shader de mezcla: `fade`, `wipe` (dirección según avance/retroceso), `noise` (fbm con borde luminoso), `zoom` (escala + desenfoque radial). |
 | `scenes/ColorScene.js` | Color al 100 % + gradiente animado (fbm) + partículas + `TextOverlay`. |
-| `scenes/MediaScene.js` | Imagen o video (cover/contain) del hosting, para la Fase 2. |
+| `scenes/MediaScene.js` | Imagen o video (cover/contain) del hosting. Tarjeta de título y arranque diferido (`media.startDelayMs`). |
+| `scenes/WebScene.js` | Película web (carpeta como `fagosEvo/` o `.html`) en un iframe sobre el canvas (`#web-layer`). Tarjeta de título en WebGL durante la cuenta regresiva; el iframe se carga al terminar, aparece con fundido, se desvanece durante la transición de salida y se descarga. Reenvía las teclas al `KeyboardInput` (captura + `stopImmediatePropagation`), envía la tecla de pausa a la página y puede inyectarle CSS (mismo origen). |
+| `scenes/mediaKind.js` | Deduce el tipo (`video` / `image` / `web`) por la extensión o el ajuste de la escena. |
 | `scenes/TextOverlay.js` | Canvas 2D → textura: número de escena, bloque, título, subtítulo, logo opcional. Tipografías institucionales. |
 | `inputs/VoiceInput.js` + `VoiceMatcher.js` | Web Speech continuo con resultados intermedios; palabra de activación, ventana tras el nombre, frase más larga gana, «escena N»; consulta `/intent` si no coincide; se silencia mientras la IA habla. |
-| `inputs/GestureInput.js` | MediaPipe GestureRecognizer (VIDEO, 2 manos), sostenido por gesto, swipe por desplazamiento de la palma, filtros de confianza, mano y zona; vista previa con esqueleto. |
+| `inputs/GestureInput.js` | MediaPipe GestureRecognizer (VIDEO, 2 manos), filtros de zona y mano, vista previa con esqueleto y anillo de progreso. |
+| `inputs/GestureLogic.js` | Decide cuándo un gesto es intencional (sin cámara, con pruebas unitarias): acción por mano, sostenido que solo corre con la mano quieta (`stillness`), tolerancia a parpadeos (`graceMs`), soltar para repetir, enfriamiento (`cooldownMs`), swipe opcional. |
 | `inputs/MediaKeysInput.js` | Media Session API + WAV silencioso de 10 s generado en memoria. |
 | `inputs/KeyboardInput.js` | Teclas por `event.code` (independiente del idioma del teclado). |
 | `output/AudioOutputs.js` | Dos `AudioContext` («public» y «discreet») con `setSinkId`; decodificación en `OfflineAudioContext`. |
@@ -64,7 +67,7 @@ PHP 8.0+, sin Composer. `bootstrap.php` carga `lib/util.php`, `store.php`, `auth
 | `routes/coverage.php` | POST `{transcript, facts}` | Ids de los datos clave ya mencionados. La transcripción no se guarda. |
 | `routes/sync.php` | POST | Presentación: publica estado y registro, recibe comandos y configuración. Panel/presentador: reciben estado, registro y avisos. `action:"command"` envía un comando remoto. |
 | `routes/test.php` | POST `{provider}` | «Probar conexión» (lista voces o modelos). |
-| `routes/media.php` | GET | Archivos de `wj-content/media`. |
+| `routes/media.php` | GET | Carpetas junto a la presentación con `index.html` (películas web), sus videos/imágenes/páginas y los archivos de `wj-content/media`. URLs relativas a la carpeta de la presentación. |
 | `routes/rehearsal.php` | GET / POST | Resúmenes de ensayos. |
 | `routes/status.php` | GET | Diagnóstico del servidor. |
 

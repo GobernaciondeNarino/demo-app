@@ -23,6 +23,10 @@ En el computador de la presentación: **Google Chrome de escritorio** actualizad
 
 La aplicación funciona en la raíz del dominio o en cualquier subcarpeta: todas las rutas son relativas.
 
+### Películas web en carpetas
+
+Suba cada película (carpeta con su `index.html`) **dentro de la carpeta de la presentación**, por ejemplo `httpdocs/ctIA-26/fagosEvo/`. Así queda en la misma dirección base (`https://tic.narino.gov.co/ctIA-26/fagosEvo/`) y el panel la lista en *Escenas › Elegir película o archivo…*. Debe estar en el mismo dominio: el `.htaccess` permite incrustar páginas solo del mismo sitio (`X-Frame-Options: SAMEORIGIN`) y así el teclado y el clicker siguen funcionando dentro de la película.
+
 ## 3. Permisos de escritura
 
 PHP necesita escribir en dos carpetas:

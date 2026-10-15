@@ -13,8 +13,8 @@ bash run.sh
 (el sitio y un **servidor simulado** de ElevenLabs/Claude/Gemini en `mock-api/`) y ejecuta:
 
 1. Sintaxis de todos los archivos PHP.
-2. Pruebas unitarias (`unit/`, con `node --test`): comandos de voz, CommandBus (cooldown, cola, duplicados), cronómetros y asistente de datos clave.
-3. Prueba de punta a punta (`e2e/run.mjs`, Playwright + Chromium con cámara y micrófono simulados): instalación, llaves cifradas, pregeneración de audios, navegación, recordatorios, intención con IA, AirPods, modo sin internet, monitor, cambios en vivo, vista de presentador (escritorio y celular), las 4 transiciones, resumen del ensayo, bloqueo por intentos fallidos, CSRF y que ninguna llave llegue al navegador.
+2. Pruebas unitarias (`unit/`, con `node --test`): comandos de voz, gestos (mano quieta, puño derecho/izquierdo, hablar gesticulando no dispara), CommandBus (cooldown, cola, duplicados), cronómetros y asistente de datos clave.
+3. Prueba de punta a punta (`e2e/run.mjs`, Playwright + Chromium con cámara y micrófono simulados): instalación, llaves cifradas, pregeneración de audios, navegación, recordatorios, intención con IA, AirPods, modo sin internet, monitor, cambios en vivo, vista de presentador (escritorio y celular), las 4 transiciones, película web en una subcarpeta (arranque diferido, pausa y teclas), resumen del ensayo, bloqueo por intentos fallidos, CSRF y que ninguna llave llegue al navegador.
 
 Las capturas quedan en `tests/output/screens/` y las peticiones recibidas por el servidor simulado en `tests/output/mock-requests.jsonl`.
 

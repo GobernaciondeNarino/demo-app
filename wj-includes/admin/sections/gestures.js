@@ -1,8 +1,10 @@
 /** Sección 3: gestos con cámara (MediaPipe), con vista previa y esqueleto de la mano. */
 import { h } from '../../ui/dom.js';
-import { GestureInput, GESTURE_LABELS } from '../../inputs/GestureInput.js';
+import { GestureInput, GESTURE_LABELS, HAND_LABELS } from '../../inputs/GestureInput.js';
 import { ACTION_LABELS } from '../../core/CommandBus.js';
 import { card, grid, note } from './ui.js';
+
+const HOLD_GESTURES = ['Closed_Fist', 'Open_Palm', 'Pointing_Up', 'Thumb_Up', 'Thumb_Down', 'Victory', 'ILoveYou'];
 
 export default {
   id: 'gestos',
@@ -37,22 +39,22 @@ export default {
         status.textContent = 'Vista previa detenida.';
         return;
       }
-      const preview = { ...structuredClone(ctx.draft.gestures), enabled: true };
-      input = new GestureInput({
-        dispatch: () => {},
-        resolveUrl: ctx.resolveUrl,
-        canvas,
-      });
+      input = new GestureInput({ dispatch: () => {}, resolveUrl: ctx.resolveUrl, canvas });
       input.addEventListener('status', (e) => {
         status.className = `test-result ${e.detail.status === 'error' ? 'is-error' : e.detail.status === 'on' ? 'is-ok' : ''}`;
-        status.textContent = { loading: `Cargando… ${e.detail.detail}`, on: 'Cámara activa. Pruebe sus gestos dentro de la zona amarilla.', error: `Error: ${e.detail.detail}`, off: 'Vista previa detenida.' }[e.detail.status] || e.detail.status;
+        status.textContent = {
+          loading: `Cargando… ${e.detail.detail}`,
+          on: 'Cámara activa. Haga el gesto dentro de la zona amarilla y deje la mano quieta hasta que el anillo se llene.',
+          error: `Error: ${e.detail.detail}`,
+          off: 'Vista previa detenida.',
+        }[e.detail.status] || e.detail.status;
       });
       input.addEventListener('gesture', (e) => {
-        const { gesture, action } = e.detail;
-        detected.prepend(h('li', {}, `${new Date().toLocaleTimeString()} · ${GESTURE_LABELS[gesture] || gesture} → ${action && action !== 'NONE' ? ACTION_LABELS[action] : 'sin acción'}`));
+        const { gesture, hand, action } = e.detail;
+        detected.prepend(h('li', {}, `${new Date().toLocaleTimeString()} · ${GESTURE_LABELS[gesture] || gesture} (mano ${HAND_LABELS[hand] || '?'}) → ${action && action !== 'NONE' ? ACTION_LABELS[action] : 'sin acción'}`));
         while (detected.children.length > 8) detected.lastChild.remove();
       });
-      input.configure(preview);
+      input.configure({ ...structuredClone(ctx.draft.gestures), enabled: true });
       start.textContent = 'Detener vista previa';
       await input.start();
       loadCams();
@@ -60,38 +62,53 @@ export default {
     // Los cambios del borrador se reflejan en la vista previa al instante.
     const off = ctx.onDraftChange((d) => input?.configure({ ...structuredClone(d.gestures), enabled: true }));
 
-    const gestureRows = Object.keys(GESTURE_LABELS).map((g) => h('div', { class: 'gesture-row' },
-      f.action(GESTURE_LABELS[g], `gestures.map.${g}`),
-      g.startsWith('swipe') ? h('div', { class: 'field' }) : f.number('Sostener', `gestures.holdMs.${g}`, { min: 100, max: 5000, step: 100, suffix: 'ms' })));
+    const row = (g) => h('div', { class: 'gesture-row' },
+      h('strong', { class: 'gesture-name' }, GESTURE_LABELS[g]),
+      f.action('Mano derecha', `gestures.map.${g}.Right`),
+      f.action('Mano izquierda', `gestures.map.${g}.Left`),
+      HOLD_GESTURES.includes(g)
+        ? f.number('Quieta durante', `gestures.holdMs.${g}`, { min: 200, max: 5000, step: 100, suffix: 'ms' })
+        : h('div', { class: 'field' }));
 
     return {
       cleanup: () => { off(); input?.stop(); },
       el: h('div', { class: 'stack' },
+        note('Para que hablar con las manos no cambie de escena, un gesto solo cuenta si la mano se queda QUIETA en la misma forma el tiempo indicado. Por defecto: puño derecho = siguiente, puño izquierdo = anterior, 1 segundo quieto. Los demás gestos y el swipe vienen apagados.'),
         card('Vista previa',
           h('div', { class: 'inline' }, h('label', { class: 'field grow' }, 'Cámara', camSel), start),
           status,
-          h('div', { class: 'preview' }, canvas, h('div', {}, h('h3', {}, 'Gestos detectados'), detected)),
-          note('Para el auditorio: cámara web con buen zoom apuntando a donde usted se para, y buena luz frontal. Ajuste la zona activa para ignorar al público.')),
-        card('Gesto → acción', h('div', { class: 'gesture-grid' }, gestureRows)),
-        card('Filtros',
+          h('div', { class: 'preview' }, canvas, h('div', {}, h('h3', {}, 'Gestos reconocidos'), detected)),
+          note('Verifique que diga «mano derecha» cuando levanta la derecha. Si aparece al revés (algunas cámaras ya entregan la imagen volteada), active «Invertir manos».')),
+        card('Gesto → acción por mano', h('div', { class: 'gesture-grid' }, ...HOLD_GESTURES.map(row))),
+        card('Cuándo cuenta un gesto',
           grid(
             f.toggle('Gestos activos', 'gestures.enabled'),
+            f.range('Movimiento permitido mientras se sostiene', 'gestures.stillness', {
+              min: 0.01, max: 0.15, step: 0.005, format: (v) => `${(v * 100).toFixed(1)} % del encuadre`,
+              hint: 'Si la mano se mueve más que esto, el reloj del gesto vuelve a cero. Menor = más estricto.',
+            }),
+            f.number('Enfriamiento después de un gesto', 'gestures.cooldownMs', { min: 0, max: 10000, step: 100, suffix: 'ms', hint: 'Tiempo en el que no se acepta otro gesto.' }),
+            f.number('Tolerancia a parpadeos del reconocimiento', 'gestures.graceMs', { min: 0, max: 1000, step: 50, suffix: 'ms', hint: 'Cuadros sueltos mal clasificados no reinician el gesto.' }),
             f.range('Confianza mínima', 'gestures.minConfidence', { min: 0.3, max: 0.99, step: 0.01, format: (v) => `${Math.round(v * 100)} %` }),
-            f.number('Cuadros por segundo', 'gestures.fps', { min: 5, max: 60 }),
-            f.select('Mano', 'gestures.hand', [['any', 'Cualquiera'], ['Right', 'Derecha'], ['Left', 'Izquierda']]),
-            f.toggle('Imagen en espejo (izquierda = su izquierda)', 'gestures.mirror'))),
-        card('Swipe',
-          grid(
-            f.toggle('Detectar swipe', 'gestures.swipe.enabled'),
-            f.range('Distancia mínima (fracción del ancho)', 'gestures.swipe.minDistance', { min: 0.05, max: 0.9, step: 0.01, format: (v) => `${Math.round(v * 100)} %` }),
-            f.number('Duración máxima', 'gestures.swipe.maxDurationMs', { min: 150, max: 1500, step: 50, suffix: 'ms' }))),
+            f.select('Manos que se analizan', 'gestures.hand', [['any', 'Ambas'], ['Right', 'Solo la derecha'], ['Left', 'Solo la izquierda']]),
+            f.toggle('Invertir manos (si la vista previa las muestra al revés)', 'gestures.swapHands'),
+            f.toggle('Vista previa en espejo', 'gestures.mirror'),
+            f.number('Cuadros por segundo', 'gestures.fps', { min: 5, max: 60 }))),
         card('Zona activa del encuadre',
-          h('p', { class: 'hint' }, 'Solo cuentan las manos dentro del rectángulo amarillo (valores de 0 a 1).'),
+          h('p', { class: 'hint' }, 'Solo cuentan las manos dentro del rectángulo amarillo. Consejo: suba el borde inferior hasta la altura del pecho; así las manos que acompañan la conversación (más abajo) se ignoran y los gestos se hacen con la mano levantada.'),
           grid(
             f.range('Izquierda', 'gestures.zone.x0', { min: 0, max: 1, step: 0.01 }),
             f.range('Derecha', 'gestures.zone.x1', { min: 0, max: 1, step: 0.01 }),
             f.range('Arriba', 'gestures.zone.y0', { min: 0, max: 1, step: 0.01 }),
             f.range('Abajo', 'gestures.zone.y1', { min: 0, max: 1, step: 0.01 }))),
+        h('details', { class: 'card' },
+          h('summary', {}, 'Swipe (no recomendado al hablar con las manos)'),
+          note('El swipe se dispara con movimientos rápidos de la mano, que son comunes al hablar. Úselo solo si es necesario.', 'warn'),
+          grid(
+            f.toggle('Detectar swipe', 'gestures.swipe.enabled'),
+            f.range('Distancia mínima (fracción del ancho)', 'gestures.swipe.minDistance', { min: 0.05, max: 0.9, step: 0.01, format: (v) => `${Math.round(v * 100)} %` }),
+            f.number('Duración máxima', 'gestures.swipe.maxDurationMs', { min: 150, max: 1500, step: 50, suffix: 'ms' })),
+          h('div', { class: 'gesture-grid' }, ['swipe_left', 'swipe_right'].map(row))),
         h('details', { class: 'card' },
           h('summary', {}, 'Avanzado: archivos de MediaPipe'),
           note('Por defecto se usan los archivos incluidos en el repositorio (funcionan sin internet). Puede apuntar a un CDN si lo prefiere.'),

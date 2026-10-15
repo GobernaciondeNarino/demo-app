@@ -32,10 +32,10 @@ Detalles técnicos: **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)**.
 
 | Acción | Voz (con «Ñaño», …) | Gesto | AirPods | Teclado / clicker |
 |---|---|---|---|---|
-| Siguiente | «siguiente», «continúa», «avanza», «adelante» | Swipe a la izquierda · puño sostenido 0,8 s | Doble toque | → ↓ AvPág Espacio |
-| Anterior | «atrás», «regresa», «anterior», «devuélvete» | Swipe a la derecha | Triple toque | ← ↑ RePág |
-| Repetir escena | «repite», «otra vez» | Pulgar arriba sostenido | — | R |
-| Pausa / reanudar | «pausa», «espera» / «reanuda» | Palma abierta 1,5 s | (opcional) un toque | P |
+| Siguiente | «siguiente», «continúa», «avanza», «adelante» | **Puño derecho quieto 1 s** | Doble toque | → ↓ AvPág Espacio |
+| Anterior | «atrás», «regresa», «anterior», «devuélvete» | **Puño izquierdo quieto 1 s** | Triple toque | ← ↑ RePág |
+| Repetir escena | «repite», «otra vez» | (configurable) | — | R |
+| Pausa / reanudar | «pausa», «espera» / «reanuda» | (configurable) | (opcional) un toque | P |
 | Avanzar sin el recordatorio | «continuar igual», «ya lo dije» | — | — | C |
 | Que Ñaño narre | «cuéntanos», «tu turno» | — | — | N |
 | Ir a una escena | «escena tres» | — | — | (panel o vista de presentador) |
@@ -43,7 +43,25 @@ Detalles técnicos: **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)**.
 | Silenciar la voz de la IA | «silencio» | — | — | M |
 | Mostrar/ocultar HUD · pantalla completa | — | — | — | H · F |
 
-Todo es editable en el panel (diccionario de voz, gesto → acción, teclas, botones de los AirPods).
+Todo es editable en el panel (diccionario de voz, gesto → acción por mano, teclas, botones de los AirPods).
+
+**Gestos sin falsos disparos**: un gesto solo cuenta si la mano se queda **quieta** con la misma forma durante el tiempo configurado (1 s por defecto); si la mano se mueve —como al hablar—, el reloj vuelve a cero. Después de cada gesto hay 2 s de enfriamiento y hay que soltar el puño para repetir. El swipe y la palma abierta vienen apagados. En el HUD, un anillo amarillo alrededor del ícono de cámara muestra el avance del gesto.
+
+## Películas web en subcarpetas
+
+Las escenas pueden mostrar una página web («película») que esté en una carpeta junto a la presentación:
+
+```
+https://tic.narino.gov.co/ctIA-26/            → presentación
+https://tic.narino.gov.co/ctIA-26/fagosEvo/   → película (carpeta con index.html)
+```
+
+En el panel: **Escenas › Tipo: Película, video o imagen del hosting › Elegir película o archivo… › «fagosEvo/»** (o pegue la dirección completa: se convierte sola en el enlace relativo `fagosEvo/`, así sigue funcionando si el sitio cambia de carpeta).
+
+- Al entrar a la escena se ve la tarjeta de título y la película **arranca N segundos después** (5 por defecto, configurable por escena; cuenta desde que se cambia a la escena o se inicia la presentación en ella).
+- Las flechas, el clicker, la voz, los gestos y los AirPods siguen controlando la presentación: las teclas no llegan a la película.
+- Pausar la presentación envía Espacio a la película (configurable); al salir de la escena, la película se desvanece y se descarga.
+- La vista de presentador muestra «La película inicia en 3 s» / «está en pantalla».
 
 ---
 
@@ -51,9 +69,9 @@ Todo es editable en el panel (diccionario de voz, gesto → acción, teclas, bot
 
 - **CommandBus único**: voz, gestos, AirPods, teclado y comandos remotos producen el mismo efecto; cooldown global (1,2 s), cola de 1 comando durante las transiciones y registro de eventos para el monitor.
 - **Motor de escenas Three.js** con dos render targets y 4 transiciones en shader: fundido, barrido direccional, disolución con ruido (borde luminoso) y zoom + desenfoque. Precarga de la escena siguiente y anterior.
-- **Escenas de color** con gradiente animado, partículas, número de escena y textos con las tipografías institucionales. Escenas de **imagen o video** del mismo hosting (`wj-content/media/`) listas para la Fase 2.
+- **Escenas de color** con gradiente animado, partículas, número de escena y textos con las tipografías institucionales. Escenas con **películas web** en carpetas junto a la presentación (p. ej. `fagosEvo/`), **videos** o **imágenes**, que arrancan N s después de entrar a la escena.
 - **Voz**: Web Speech de Chrome (es-CO), palabra de activación «Ñaño» con variantes, diccionario editable, «escena 3», IA (Claude/Gemini) para frases ambiguas, y silencio del reconocimiento mientras la IA habla.
-- **Gestos**: MediaPipe GestureRecognizer local (incluido en el repositorio, funciona sin internet), swipe, tiempos de sostenido, confianza mínima, mano y zona activa; vista previa con esqueleto en el panel.
+- **Gestos**: MediaPipe GestureRecognizer local (incluido en el repositorio, funciona sin internet), acción por mano (puño derecho/izquierdo), mano quieta durante el tiempo de sostenido, tolerancia de movimiento, enfriamiento, zona activa; vista previa con esqueleto y anillo de progreso en el panel.
 - **AirPods** por Media Session API (pista silenciosa en bucle) con botón de prueba en el panel.
 - **Respuestas con ElevenLabs** pregeneradas al guardar y precargadas en memoria: suenan al instante y siguen funcionando sin internet. Salidas separadas: parlantes del auditorio y AirPods (modo discreto) con `setSinkId`. Voz del navegador como respaldo.
 - **Asistente de datos clave**: transcripción por escena en memoria, verificación en segundo plano con IA (entiende otras palabras), respaldo por palabras clave, recordatorio antes de avanzar, «continuar igual», máximo por escena, prioridad alta cuando va atrasado.
@@ -86,14 +104,15 @@ Todo es editable en el panel (diccionario de voz, gesto → acción, teclas, bot
 │   └── cache/tts/             mp3 generados (no se versionan)
 ├── wj-includes/               Frontend (módulos ES, sin compilación)
 │   ├── core/                  App, CommandBus, SceneManager, TransitionPass, FactsAssistant, BlockTimer, LiveSync…
-│   ├── inputs/                VoiceInput, VoiceMatcher, GestureInput, MediaKeysInput, KeyboardInput
+│   ├── inputs/                VoiceInput, VoiceMatcher, GestureInput, GestureLogic, MediaKeysInput, KeyboardInput
 │   ├── output/                VoiceResponder, AudioOutputs, Hud
-│   ├── scenes/                ColorScene, MediaScene, TextOverlay
+│   ├── scenes/                ColorScene, MediaScene (video/imagen), WebScene (películas web), TextOverlay
 │   ├── admin/ · presenter/    Interfaces del panel y de la vista de presentador
 │   ├── css/ · fonts/          Estilos e identidad (Hind Madurai, Source Sans 3)
 │   └── vendor/                three.js, GSAP, MediaPipe (incluidos, sin CDN)
+├── fagosEvo/ …                Películas web (carpetas con index.html, se suben aparte)
 ├── wj-content/
-│   ├── media/                 Imágenes y videos de la Fase 2
+│   ├── media/                 Imágenes y videos
 │   └── data/                  Datos privados (se crean solos; no se versionan)
 ├── docs/                      Documentación
 └── tests/                     Pruebas automáticas (solo desarrollo)
@@ -128,7 +147,7 @@ cd tests && npm install && npx playwright install chromium   # solo la primera v
 bash run.sh
 ```
 
-Ejecuta: sintaxis PHP, 19 pruebas unitarias (comandos de voz, CommandBus, cronómetros, datos clave) y una prueba de punta a punta con Playwright contra el sitio PHP real y un servidor simulado de ElevenLabs/Claude/Gemini (instalación, llaves cifradas, pregeneración de audios, navegación, cooldown, recordatorios, «continuar igual», intención con IA, AirPods, sin internet, monitor, cambios en vivo, vista de presentador, las 4 transiciones, resumen de ensayo, bloqueo por intentos, CSRF y que ninguna llave llegue al navegador). Lo que requiere hardware real (micrófono, AirPods, cámara con manos) está en la lista de verificación de [docs/GUIA-DEL-EVENTO.md](docs/GUIA-DEL-EVENTO.md).
+Ejecuta: sintaxis PHP, 28 pruebas unitarias (comandos de voz, gestos, CommandBus, cronómetros, datos clave) y una prueba de punta a punta con Playwright contra el sitio PHP real y un servidor simulado de ElevenLabs/Claude/Gemini (instalación, llaves cifradas, pregeneración de audios, navegación, cooldown, recordatorios, «continuar igual», intención con IA, AirPods, sin internet, monitor, cambios en vivo, vista de presentador, las 4 transiciones, película web en subcarpeta (arranque diferido, pausa, teclas), resumen de ensayo, bloqueo por intentos, CSRF y que ninguna llave llegue al navegador). Lo que requiere hardware real (micrófono, AirPods, cámara con manos) está en la lista de verificación de [docs/GUIA-DEL-EVENTO.md](docs/GUIA-DEL-EVENTO.md).
 
 ## Licencias de terceros
 

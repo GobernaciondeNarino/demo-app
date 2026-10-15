@@ -390,6 +390,73 @@ for (const type of ['fade', 'wipe', 'noise', 'zoom']) {
   });
 }
 
+console.log('Películas web en subcarpetas');
+
+await step('Panel: el selector lista «peliculaDemo/» y la dirección completa se vuelve relativa', async () => {
+  await admin.goto(`${BASE}wj-admin/#escenas`);
+  await admin.click('button:has-text("+ Agregar escena")');
+  const card = admin.locator('.scene-card.is-open').last();
+  await card.getByLabel('Título', { exact: true }).fill('Película: vida diseñada');
+  await card.getByLabel('Tipo de escena', { exact: true }).selectOption('media');
+  const url = card.getByLabel('Enlace', { exact: true });
+  await url.fill(`${BASE}peliculaDemo/`);
+  await url.press('Tab');
+  assert.equal(await url.inputValue(), 'peliculaDemo/');
+  await card.locator('.url-preview', { hasText: 'página web' }).waitFor();
+  await url.fill('');
+  await card.getByRole('button', { name: 'Elegir película o archivo…' }).click();
+  await card.locator('.media-picker h4', { hasText: 'Carpetas junto a la presentación' }).waitFor();
+  await card.locator('.media-picker button', { hasText: 'peliculaDemo/' }).click();
+  assert.equal(await url.inputValue(), 'peliculaDemo/');
+  await card.getByLabel('Iniciar el contenido después de (segundos)').fill('1.5');
+  await admin.click('button:has-text("Guardar cambios")');
+  await admin.locator('.save-msg', { hasText: /Audios listos|Guardado/ }).waitFor({ timeout: 20000 });
+  await admin.screenshot({ path: path.join(SHOTS, 'a-escena-pelicula.png'), fullPage: true });
+});
+
+await step('Película web: tarjeta de título y arranque N s después de entrar a la escena', async () => {
+  const total = await waitFor(async () => {
+    const n = await P(() => window.__presentation.sceneManager.count);
+    return n >= 7 ? n : 0;
+  }, { msg: 'nueva escena en la presentación' });
+  const t0 = Date.now();
+  await dispatch({ action: 'GOTO', arg: total, source: 'admin' });
+  await sleep(400);
+  assert.equal(await pres.locator('.web-frame').count(), 0, 'la película aún no se carga');
+  assert.equal((await P(() => window.__presentation.buildState().scene.media)).state, 'waiting');
+  await pres.screenshot({ path: path.join(SHOTS, 'w1-tarjeta.png') });
+  await pres.locator('.web-frame.is-visible').waitFor({ timeout: 12000 });
+  const elapsed = Date.now() - t0;
+  assert.ok(elapsed >= 1400, `arrancó a los ${elapsed} ms`);
+  assert.ok(await P(() => !!document.querySelector('.web-frame').contentWindow.startedAt), 'la película cargó');
+  await sleep(900);
+  await pres.screenshot({ path: path.join(SHOTS, 'w2-pelicula.png') });
+  assert.equal((await P(() => window.__presentation.buildState().scene.media)).state, 'playing');
+  await cooldown();
+});
+
+await step('Película web: pausar la presentación pausa la película (tecla Espacio)', async () => {
+  const frame = () => P(() => { const w = document.querySelector('.web-frame').contentWindow; return { playing: w.playing, keys: w.keysReceived }; });
+  await dispatch({ action: 'TOGGLE_PAUSE', source: 'voice' });
+  assert.deepEqual(await frame(), { playing: false, keys: ['Space'] });
+  await cooldown();
+  await dispatch({ action: 'TOGGLE_PAUSE', source: 'voice' });
+  assert.equal((await frame()).playing, true);
+  await cooldown();
+});
+
+await step('Película web: las flechas pulsadas dentro de la película cambian de escena (no la adelantan)', async () => {
+  const before = await index();
+  await P(() => document.querySelector('.web-frame').contentWindow.focus());
+  await pres.keyboard.press('ArrowLeft');
+  await waitFor(async () => (await index()) === before - 1, { msg: 'retroceso desde dentro de la película' });
+  const keys = await P(() => document.querySelector('.web-frame')?.contentWindow.keysReceived || []);
+  assert.ok(!keys.includes('ArrowLeft'), `la película no recibió la flecha (${keys})`);
+  await idle();
+  assert.equal(await pres.locator('.web-frame').count(), 0, 'la película se descarga al salir');
+  await cooldown();
+});
+
 console.log('Cierre y seguridad');
 
 await step('Al pasar la última escena se guarda el resumen del ensayo', async () => {

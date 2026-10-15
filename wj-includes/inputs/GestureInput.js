@@ -2,17 +2,20 @@
  * Gestos con la cámara usando MediaPipe GestureRecognizer (corre localmente
  * en el navegador, sin enviar video a ningún servidor).
  *
- * - Gestos nativos sostenidos: Closed_Fist, Open_Palm, Pointing_Up,
- *   Thumb_Up, Thumb_Down, Victory, ILoveYou (tiempo de sostenido por gesto).
- * - Swipe calculado aparte: desplazamiento horizontal de la palma mayor que
- *   el umbral en menos de N ms.
- * - Filtros: confianza mínima, mano dominante, zona activa del encuadre.
- * - El video no se muestra en la presentación; el panel puede pasar un canvas
- *   para ver la vista previa con el esqueleto de la mano.
+ * Para que hablar y mover las manos NO cambie de escena (ver GestureLogic.js):
+ * - cada mano tiene su acción (por defecto puño derecho = siguiente,
+ *   puño izquierdo = anterior);
+ * - el gesto solo cuenta si la mano se queda QUIETA durante el tiempo de
+ *   sostenido configurado (1 s por defecto);
+ * - swipe y palma abierta vienen desactivados;
+ * - enfriamiento de 2 s después de cada gesto.
+ *
+ * El video no se muestra en la presentación; el panel puede pasar un canvas
+ * para ver la vista previa con el esqueleto y el progreso de cada mano.
  */
+import { GestureLogic } from './GestureLogic.js';
+
 export const GESTURE_LABELS = {
-  swipe_left: 'Swipe a la izquierda',
-  swipe_right: 'Swipe a la derecha',
   Closed_Fist: 'Puño cerrado',
   Open_Palm: 'Palma abierta',
   Pointing_Up: 'Índice arriba',
@@ -20,7 +23,11 @@ export const GESTURE_LABELS = {
   Thumb_Down: 'Pulgar abajo',
   Victory: 'Victoria (V)',
   ILoveYou: 'Te quiero (🤟)',
+  swipe_left: 'Swipe a la izquierda',
+  swipe_right: 'Swipe a la derecha',
 };
+
+export const HAND_LABELS = { Right: 'derecha', Left: 'izquierda' };
 
 const PALM = [0, 5, 9, 13, 17];
 
@@ -35,16 +42,17 @@ export class GestureInput extends EventTarget {
     this.canvas = canvas;
     this.status = 'off';
     this.running = false;
-    this.track = [];
-    this.hold = { gesture: 'None', start: 0, fired: false };
-    this.swipeBlockUntil = 0;
+    this.logic = null;
     this.last = { gesture: 'None', score: 0, hand: '' };
+    this.progress = [];
     this.loop = this.loop.bind(this);
   }
 
   configure(cfg) {
     const prev = this.cfg;
     this.cfg = cfg;
+    if (this.logic) this.logic.configure(cfg);
+    else this.logic = new GestureLogic(cfg);
     if (!this.wantStart) return;
     if (!cfg.enabled) return this.stop(true);
     const needsRestart = !prev || !this.running
@@ -84,6 +92,7 @@ export class GestureInput extends EventTarget {
     if (!keepIntent) this.wantStart = false;
     this.running = false;
     this.closeCamera();
+    this.emitProgress([]);
     this.setStatus('off');
   }
 
@@ -154,15 +163,29 @@ export class GestureInput extends EventTarget {
       return;
     }
     const hands = this.readHands(res);
-    const hand = hands.find((h) => h.eligible) || null;
-    this.updateSwipe(hand, now);
-    this.updateHold(hand, now);
-    this.last = hand ? { gesture: hand.gesture, score: hand.score, hand: hand.hand } : { gesture: 'None', score: 0, hand: '' };
-    if (this.canvas) this.draw(hands, now);
+    const out = this.logic.update(hands.filter((h) => h.eligible), now);
+    for (const ev of out.events) {
+      this.dispatch({ action: ev.action, source: 'gesture', confidence: ev.confidence, meta: { gesture: ev.gesture, hand: ev.hand } });
+    }
+    for (const d of out.detected) this.dispatchEvent(new CustomEvent('gesture', { detail: d }));
+    this.emitProgress(out.progress);
+    const main = hands.find((h) => h.eligible && h.gesture !== 'None') || hands.find((h) => h.eligible);
+    this.last = main ? { gesture: main.gesture, score: main.score, hand: main.hand } : { gesture: 'None', score: 0, hand: '' };
+    if (this.canvas) this.draw(hands, out.progress);
     if (!this.lastEmit || now - this.lastEmit > 250) {
       this.lastEmit = now;
       this.dispatchEvent(new CustomEvent('frame', { detail: this.last }));
     }
+  }
+
+  /** Avisa el progreso del gesto más avanzado (0 = ninguno) para el HUD. */
+  emitProgress(list) {
+    this.progress = list;
+    const best = list.reduce((a, b) => (b.p > (a?.p ?? -1) ? b : a), null);
+    const key = best ? `${best.hand}${best.gesture}${Math.round(best.p * 20)}` : '';
+    if (key === this.progressKey) return;
+    this.progressKey = key;
+    this.dispatchEvent(new CustomEvent('progress', { detail: best }));
   }
 
   readHands(res) {
@@ -173,9 +196,11 @@ export class GestureInput extends EventTarget {
       const cx = PALM.reduce((s, k) => s + pts[k].x, 0) / PALM.length;
       const cy = PALM.reduce((s, k) => s + pts[k].y, 0) / PALM.length;
       // MediaPipe etiqueta la mano suponiendo imagen de espejo; la cámara entrega
-      // la imagen sin voltear, así que la mano real es la contraria.
+      // la imagen sin voltear, así que la mano real es la contraria. Si alguna
+      // cámara entrega la imagen ya volteada, se corrige con «Invertir manos».
       const label = res.handedness?.[i]?.[0]?.categoryName || '';
-      const hand = label === 'Left' ? 'Right' : label === 'Right' ? 'Left' : '';
+      let hand = label === 'Left' ? 'Right' : label === 'Right' ? 'Left' : '';
+      if (cfg.swapHands && hand) hand = hand === 'Right' ? 'Left' : 'Right';
       const g = res.gestures?.[i]?.[0];
       const inZone = cx >= z.x0 && cx <= z.x1 && cy >= z.y0 && cy <= z.y1;
       const handOk = cfg.hand === 'any' || cfg.hand === hand;
@@ -183,53 +208,8 @@ export class GestureInput extends EventTarget {
     });
   }
 
-  updateHold(h, now) {
-    const g = h && h.score >= this.cfg.minConfidence ? h.gesture : 'None';
-    if (g !== this.hold.gesture) {
-      this.hold = { gesture: g, start: now, fired: false };
-      return;
-    }
-    if (g === 'None' || this.hold.fired) return;
-    const action = this.cfg.map[g];
-    if (!action || action === 'NONE') return;
-    if (now - this.hold.start >= (this.cfg.holdMs[g] ?? 800)) {
-      this.hold.fired = true;
-      this.dispatch({ action, source: 'gesture', confidence: h.score, meta: { gesture: g } });
-      this.emitDetected(g, action);
-    }
-  }
-
-  updateSwipe(h, now) {
-    const sw = this.cfg.swipe;
-    if (!sw.enabled || !h) {
-      this.track = [];
-      return;
-    }
-    this.track.push({ x: h.cx, y: h.cy, t: now });
-    while (this.track.length && now - this.track[0].t > sw.maxDurationMs) this.track.shift();
-    if (now < this.swipeBlockUntil || this.track.length < 3) return;
-    const first = this.track[0];
-    const dx = h.cx - first.x;
-    const dy = h.cy - first.y;
-    if (Math.abs(dx) >= sw.minDistance && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      const name = dx < 0 ? 'swipe_left' : 'swipe_right';
-      const action = this.cfg.map[name];
-      this.track = [];
-      this.swipeBlockUntil = now + 700;
-      this.hold.fired = true;
-      if (action && action !== 'NONE') {
-        this.dispatch({ action, source: 'gesture', confidence: Math.min(1, Math.abs(dx) / sw.minDistance * 0.8), meta: { gesture: name } });
-      }
-      this.emitDetected(name, action);
-    }
-  }
-
-  emitDetected(gesture, action) {
-    this.dispatchEvent(new CustomEvent('gesture', { detail: { gesture, action } }));
-  }
-
-  /** Vista previa para el panel: video, zona activa y esqueleto de la mano. */
-  draw(hands, now) {
+  /** Vista previa para el panel: video, zona activa, esqueleto y progreso de cada mano. */
+  draw(hands, progress) {
     const c = this.canvas;
     const v = this.video;
     const w = v.videoWidth || 640;
@@ -255,8 +235,7 @@ export class GestureInput extends EventTarget {
     ctx.setLineDash([]);
 
     for (const hand of hands) {
-      const color = hand.eligible ? '#10A13B' : 'rgba(255,255,255,0.5)';
-      ctx.strokeStyle = color;
+      ctx.strokeStyle = hand.eligible ? '#10A13B' : 'rgba(255,255,255,0.5)';
       ctx.lineWidth = 3;
       for (const { start, end } of this.connections || []) {
         const a = hand.pts[start];
@@ -272,25 +251,27 @@ export class GestureInput extends EventTarget {
         ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
         ctx.fill();
       }
-      const label = `${GESTURE_LABELS[hand.gesture] || hand.gesture} ${(hand.score * 100).toFixed(0)}% · mano ${hand.hand === 'Right' ? 'derecha' : hand.hand === 'Left' ? 'izquierda' : '?'}`;
+      const pr = progress.find((x) => x.hand === hand.hand);
+      const label = `${GESTURE_LABELS[hand.gesture] || 'Sin gesto'} ${(hand.score * 100).toFixed(0)}% · mano ${HAND_LABELS[hand.hand] || '?'}${pr ? (pr.still ? ' · quieta' : ' · en movimiento') : ''}`;
       ctx.font = '600 16px "Source Sans 3", sans-serif';
-      const tx = Math.min(w - 260, Math.max(8, hand.cx * w - 60));
-      const ty = Math.max(24, hand.cy * h - 70);
+      const tx = Math.min(w - 300, Math.max(8, hand.cx * w - 80));
+      const ty = Math.max(24, hand.cy * h - 80);
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
       ctx.fillRect(tx - 6, ty - 18, ctx.measureText(label).width + 12, 26);
       ctx.fillStyle = '#FFFFFF';
       ctx.fillText(label, tx, ty);
-    }
-
-    // Progreso del gesto sostenido.
-    if (this.hold.gesture !== 'None' && !this.hold.fired && this.cfg.map[this.hold.gesture] !== 'NONE') {
-      const need = this.cfg.holdMs[this.hold.gesture] ?? 800;
-      const p = Math.min(1, (now - this.hold.start) / need);
-      ctx.strokeStyle = '#FFD500';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.arc(w - 40, 40, 22, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
-      ctx.stroke();
+      // Anillo de progreso: se llena solo mientras la mano está quieta.
+      if (pr) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.arc(hand.cx * w, hand.cy * h, 34, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = pr.p >= 1 ? '#10A13B' : '#FFD500';
+        ctx.beginPath();
+        ctx.arc(hand.cx * w, hand.cy * h, 34, -Math.PI / 2, -Math.PI / 2 + pr.p * Math.PI * 2);
+        ctx.stroke();
+      }
     }
   }
 

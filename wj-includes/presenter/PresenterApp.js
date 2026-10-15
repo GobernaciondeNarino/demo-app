@@ -85,6 +85,7 @@ function build() {
   els.sceneBlock = h('p', { class: 'scene-block' });
   els.swatch = h('span', { class: 'swatch' });
   els.flags = h('div', { class: 'flags' });
+  els.media = h('p', { class: 'scene-media', hidden: true });
 
   els.blockClock = h('div', { class: 'clock-value' }, '0:00');
   els.blockPlanned = h('div', { class: 'clock-sub' });
@@ -117,7 +118,7 @@ function build() {
       h('div', { class: 'topbar-right' }, els.flags, els.conn)),
     h('main', { class: 'grid' },
       h('section', { class: 'card now' },
-        h('div', { class: 'now-head' }, els.swatch, els.sceneNum, h('div', {}, els.sceneBlock, els.sceneTitle))),
+        h('div', { class: 'now-head' }, els.swatch, els.sceneNum, h('div', {}, els.sceneBlock, els.sceneTitle, els.media))),
       h('section', { class: 'card clocks' },
         h('div', { class: 'clock' }, h('div', { class: 'clock-label' }, 'Bloque'), els.blockClock, els.blockPlanned, h('div', { class: 'bar' }, els.blockBar)),
         h('div', { class: 'clock' }, h('div', { class: 'clock-label' }, 'Total'), els.totalClock, els.totalPlanned, els.delay)),
@@ -150,8 +151,32 @@ function liveSeconds(base, running) {
   return base + stateAge + (Date.now() - receivedAt) / 1000;
 }
 
+const MEDIA_KIND = { web: 'La película', video: 'El video', image: 'La imagen' };
+
+function paintMedia() {
+  const m = state.scene?.media;
+  els.media.hidden = !m;
+  if (!m) return;
+  const what = MEDIA_KIND[m.kind] || 'El contenido';
+  if (m.state === 'waiting' && m.startsIn !== null) {
+    const left = Math.max(0, Math.ceil(m.startsIn - (Date.now() - receivedAt) / 1000));
+    els.media.textContent = `▶ ${what} inicia en ${left} s`;
+    els.media.dataset.state = 'waiting';
+  } else if (m.state === 'loading') {
+    els.media.textContent = `▶ ${what} está cargando…`;
+    els.media.dataset.state = 'waiting';
+  } else if (m.state === 'playing') {
+    els.media.textContent = `▶ ${what} está en pantalla${m.error ? ` (${m.error})` : ''}`;
+    els.media.dataset.state = 'playing';
+  } else {
+    els.media.textContent = `${what} inicia al entrar en vivo a esta escena`;
+    els.media.dataset.state = 'idle';
+  }
+}
+
 function tick() {
   if (!state) return;
+  paintMedia();
   const t = state.timer;
   const running = t.running && !t.paused && !t.ended;
   const total = liveSeconds(t.total, running);

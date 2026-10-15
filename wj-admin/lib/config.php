@@ -15,6 +15,31 @@ const WJ_RESPONSE_KEYS = ['NEXT', 'PREV', 'REPEAT', 'PAUSE', 'RESUME', 'NARRATE'
 const WJ_GESTURES = ['swipe_left', 'swipe_right', 'Closed_Fist', 'Open_Palm', 'Pointing_Up', 'Thumb_Up', 'Thumb_Down', 'Victory', 'ILoveYou'];
 const WJ_MEDIA_KEYS = ['nexttrack', 'previoustrack', 'play', 'pause', 'seekforward', 'seekbackward'];
 const WJ_TRANSITIONS = ['fade', 'wipe', 'noise', 'zoom'];
+const WJ_HOLD_GESTURES = ['Closed_Fist', 'Open_Palm', 'Pointing_Up', 'Thumb_Up', 'Thumb_Down', 'Victory', 'ILoveYou'];
+const WJ_HANDS = ['Right', 'Left'];
+const WJ_MEDIA_KINDS = ['auto', 'video', 'image', 'web'];
+const WJ_PAUSE_KEYS = ['', 'Space', 'KeyP', 'KeyK'];
+
+/** Gesto → acción por mano. Por defecto: puño derecho avanza, puño izquierdo retrocede. */
+function wj_default_gesture_map(): array
+{
+    $map = [];
+    foreach (WJ_GESTURES as $g) {
+        $map[$g] = ['Right' => 'NONE', 'Left' => 'NONE'];
+    }
+    $map['Closed_Fist'] = ['Right' => 'NEXT', 'Left' => 'PREV'];
+    $map['swipe_left'] = ['Right' => 'NEXT', 'Left' => 'NEXT'];
+    $map['swipe_right'] = ['Right' => 'PREV', 'Left' => 'PREV'];
+    return $map;
+}
+
+function wj_default_media(): array
+{
+    return [
+        'url' => '', 'kind' => 'auto', 'fit' => 'cover', 'loop' => true, 'muted' => false,
+        'startDelayMs' => 5000, 'interactive' => false, 'pauseKey' => 'Space', 'css' => '',
+    ];
+}
 
 function wj_default_config(): array
 {
@@ -64,28 +89,17 @@ function wj_default_config(): array
             'fps' => 20,
             'mirror' => true,
             'hand' => 'any',
+            'swapHands' => false,
             'zone' => ['x0' => 0.0, 'y0' => 0.0, 'x1' => 1.0, 'y1' => 1.0],
-            'swipe' => ['enabled' => true, 'minDistance' => 0.22, 'maxDurationMs' => 400],
-            'map' => [
-                'swipe_left' => 'NEXT',
-                'swipe_right' => 'PREV',
-                'Closed_Fist' => 'NEXT',
-                'Open_Palm' => 'PAUSE',
-                'Pointing_Up' => 'NONE',
-                'Thumb_Up' => 'REPEAT',
-                'Thumb_Down' => 'NONE',
-                'Victory' => 'NONE',
-                'ILoveYou' => 'NONE',
-            ],
-            'holdMs' => [
-                'Closed_Fist' => 800,
-                'Open_Palm' => 1500,
-                'Pointing_Up' => 800,
-                'Thumb_Up' => 800,
-                'Thumb_Down' => 800,
-                'Victory' => 800,
-                'ILoveYou' => 800,
-            ],
+            // Un gesto solo cuenta si la mano se queda quieta (se mueve menos que
+            // "stillness", fracción del encuadre) durante su tiempo de sostenido.
+            'stillness' => 0.04,
+            'graceMs' => 250,
+            'cooldownMs' => 2000,
+            // Los swipes se disparan con los movimientos naturales al hablar: apagados por defecto.
+            'swipe' => ['enabled' => false, 'minDistance' => 0.3, 'maxDurationMs' => 400],
+            'map' => wj_default_gesture_map(),
+            'holdMs' => array_fill_keys(WJ_HOLD_GESTURES, 1000),
             'cameraLabel' => '',
             'mediapipe' => [
                 'moduleUrl' => $mp . '/vision_bundle.mjs',
@@ -223,7 +237,7 @@ function wj_default_scene(string $id, string $block, string $title, string $subt
         'effect' => 'both',
         'showNumber' => true,
         'transition' => '',
-        'media' => ['url' => '', 'fit' => 'cover', 'loop' => true, 'muted' => false],
+        'media' => wj_default_media(),
         'notes' => $notes,
         'narration' => ['text' => '', 'mode' => 'off'],
         'facts' => $facts,
@@ -382,26 +396,43 @@ function wj_sanitize_config($in): array
     if ($y1 - $y0 < 0.1) {
         [$y0, $y1] = [0.0, 1.0];
     }
+    // Configuraciones anteriores usaban "gesto → acción" para ambas manos y tenían
+    // el swipe y la palma activos (se disparaban al hablar): se pasan a los valores nuevos.
+    $legacy = false;
+    foreach ((array) ($ge['map'] ?? []) as $v) {
+        if (is_string($v)) {
+            $legacy = true;
+            break;
+        }
+    }
     $gmap = [];
     foreach (WJ_GESTURES as $gesture) {
-        $gmap[$gesture] = wj_c_enum($ge['map'][$gesture] ?? null, WJ_ACTIONS, $d['gestures']['map'][$gesture]);
+        foreach (WJ_HANDS as $hand) {
+            $gmap[$gesture][$hand] = $legacy
+                ? $d['gestures']['map'][$gesture][$hand]
+                : wj_c_enum($ge['map'][$gesture][$hand] ?? null, WJ_ACTIONS, $d['gestures']['map'][$gesture][$hand]);
+        }
     }
     $hold = [];
-    foreach ($d['gestures']['holdMs'] as $gesture => $def) {
-        $hold[$gesture] = wj_c_int($ge['holdMs'][$gesture] ?? null, $def, 100, 5000);
+    foreach (WJ_HOLD_GESTURES as $gesture) {
+        $hold[$gesture] = $legacy ? 1000 : wj_c_int($ge['holdMs'][$gesture] ?? null, 1000, 200, 5000);
     }
     $mp = $ge['mediapipe'] ?? [];
-    $sw = $ge['swipe'] ?? [];
+    $sw = $legacy ? $d['gestures']['swipe'] : ($ge['swipe'] ?? []);
     $c['gestures'] = [
         'enabled' => wj_c_bool($ge['enabled'] ?? null, true),
         'minConfidence' => wj_c_num($ge['minConfidence'] ?? null, 0.7, 0.3, 0.99),
         'fps' => wj_c_int($ge['fps'] ?? null, 20, 5, 60),
         'mirror' => wj_c_bool($ge['mirror'] ?? null, true),
         'hand' => wj_c_enum($ge['hand'] ?? null, ['any', 'Right', 'Left'], 'any'),
+        'swapHands' => wj_c_bool($ge['swapHands'] ?? null, false),
         'zone' => ['x0' => $x0, 'y0' => $y0, 'x1' => $x1, 'y1' => $y1],
+        'stillness' => wj_c_num($ge['stillness'] ?? null, 0.04, 0.005, 0.3),
+        'graceMs' => wj_c_int($ge['graceMs'] ?? null, 250, 0, 1000),
+        'cooldownMs' => wj_c_int($ge['cooldownMs'] ?? null, 2000, 0, 10000),
         'swipe' => [
-            'enabled' => wj_c_bool($sw['enabled'] ?? null, true),
-            'minDistance' => wj_c_num($sw['minDistance'] ?? null, 0.22, 0.05, 0.9),
+            'enabled' => wj_c_bool($sw['enabled'] ?? null, false),
+            'minDistance' => wj_c_num($sw['minDistance'] ?? null, 0.3, 0.05, 0.9),
             'maxDurationMs' => wj_c_int($sw['maxDurationMs'] ?? null, 400, 150, 1500),
         ],
         'map' => $gmap,
@@ -577,9 +608,14 @@ function wj_sanitize_config($in): array
             'transition' => wj_c_enum($s['transition'] ?? null, array_merge([''], WJ_TRANSITIONS), ''),
             'media' => [
                 'url' => wj_c_url($media['url'] ?? ''),
+                'kind' => wj_c_enum($media['kind'] ?? null, WJ_MEDIA_KINDS, 'auto'),
                 'fit' => wj_c_enum($media['fit'] ?? null, ['cover', 'contain'], 'cover'),
                 'loop' => wj_c_bool($media['loop'] ?? null, true),
                 'muted' => wj_c_bool($media['muted'] ?? null, false),
+                'startDelayMs' => wj_c_int($media['startDelayMs'] ?? null, 5000, 0, 120000),
+                'interactive' => wj_c_bool($media['interactive'] ?? null, false),
+                'pauseKey' => wj_c_enum($media['pauseKey'] ?? null, WJ_PAUSE_KEYS, 'Space'),
+                'css' => wj_c_str($media['css'] ?? null, '', 2000),
             ],
             'notes' => wj_c_str($s['notes'] ?? null, '', 2000),
             'narration' => [

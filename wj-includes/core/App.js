@@ -62,7 +62,11 @@ export class PresentationApp {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
-    this.sceneManager = new SceneManager(this.renderer);
+    this.sceneManager = new SceneManager(this.renderer, {
+      domLayer: this.dom.webLayer,
+      // Las teclas pulsadas dentro de una página incrustada también controlan la presentación.
+      attachKeys: (win) => this.keyboard?.attach(win),
+    });
     this.sceneManager.addEventListener('change', (e) => this.onSceneChange(e.detail));
     this.sceneManager.addEventListener('transitionend', (e) => this.onTransitionEnd(e.detail));
     canvas.addEventListener('webglcontextlost', (e) => {
@@ -122,6 +126,10 @@ export class PresentationApp {
     });
     this.gestures = new GestureInput({ dispatch, resolveUrl });
     this.gestures.addEventListener('status', (e) => this.hud.setStatus('cam', e.detail.status, e.detail.detail));
+    this.gestures.addEventListener('progress', (e) => {
+      this.gestureProgress = e.detail;
+      this.hud.setGestureProgress(e.detail?.p || 0);
+    });
     for (const k of ['mic', 'cam', 'pods']) this.hud.setStatus(k, 'off');
   }
 
@@ -275,6 +283,7 @@ export class PresentationApp {
     this.voice.start();
     this.gestures.start();
     this.timer.start(this.sceneManager.current.blockId);
+    this.sceneManager.setLive(true);
     this.responder.preload({ retryFailed: true });
     this.maybeNarrate();
     this.publishLocal(true);
@@ -506,6 +515,7 @@ export class PresentationApp {
         id: cur.id, title: cur.title, subtitle: cur.subtitle, color: cur.color, blockId: cur.blockId,
         blockName: this.blockNames?.[cur.blockId] || '', notes: cur.notes,
         narration: cur.narration?.mode !== 'off' ? cur.narration : null,
+        media: sm.currentInstance?.mediaStatus() || null,
       } : null,
       next: next ? { title: next.title, color: next.color } : null,
       prev: prev ? { title: prev.title, color: prev.color } : null,
@@ -516,7 +526,7 @@ export class PresentationApp {
       hud: this.hud.visible,
       inputs: {
         voice: { status: this.voice.status, detail: this.voice.statusDetail || '', level: Math.round(this.voice.level * 100) / 100, lastHeard: this.lastHeard.slice(-160) },
-        gesture: { status: this.gestures.status, detail: this.gestures.statusDetail || '', last: this.gestures.last },
+        gesture: { status: this.gestures.status, detail: this.gestures.statusDetail || '', last: this.gestures.last, progress: this.gestureProgress || null },
         media: { status: this.media.status },
         keyboard: { status: this.cfg?.keyboard.enabled ? 'on' : 'off' },
       },

@@ -4,6 +4,7 @@ import { PresentationApp } from './core/App.js';
 const $ = (id) => document.getElementById(id);
 const app = new PresentationApp({
   canvas: $('stage'),
+  webLayer: $('web-layer'),
   hud: $('hud'),
   black: $('black'),
   start: $('start'),

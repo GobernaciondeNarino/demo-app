@@ -31,9 +31,18 @@ function tween(target, props) {
 }
 
 export class SceneManager extends EventTarget {
-  constructor(renderer) {
+  /**
+   * @param {THREE.WebGLRenderer} renderer
+   * @param {{domLayer?: HTMLElement, attachKeys?: (win: Window) => void}} opts
+   *   domLayer: capa HTML sobre el canvas para las escenas de página web;
+   *   attachKeys: reenvía el teclado de esas páginas a la presentación.
+   */
+  constructor(renderer, { domLayer = null, attachKeys = null } = {}) {
     super();
     this.renderer = renderer;
+    this.domLayer = domLayer;
+    this.attachKeys = attachKeys;
+    this.live = false;
     this.pass = new TransitionPass();
     this.instances = new Map();
     this.sceneCfgs = [];
@@ -51,6 +60,18 @@ export class SceneManager extends EventTarget {
   get count() { return this.sceneCfgs.length; }
   get current() { return this.sceneCfgs[this.index]; }
   get isTransitioning() { return this.transition !== null; }
+  /** Instancia de la escena actual, si ya existe (no la crea). */
+  get currentInstance() { return this.current ? this.instances.get(this.keyFor(this.current, this.index)) || null : null; }
+
+  /**
+   * La presentación quedó en vivo («Iniciar presentación»): desde aquí corre la
+   * cuenta regresiva del contenido de cada escena al entrar en ella.
+   */
+  setLive(live) {
+    if (live === this.live) return;
+    this.live = live;
+    if (live && this.count) this.instance(this.index).begin();
+  }
 
   /** Aplica la configuración (al inicio y cada vez que cambia en el panel). */
   configure(appConfig, { resolveUrl }) {
@@ -78,7 +99,10 @@ export class SceneManager extends EventTarget {
     this.index = Math.max(0, newIndex >= 0 ? newIndex : Math.min(this.index, this.count - 1));
     const fresh = !this.instances.has(this.keyFor(this.current, this.index));
     const inst = this.instance(this.index);
-    if (fresh) inst.enter();
+    if (fresh) {
+      inst.enter();
+      if (this.live) inst.begin();
+    }
     this.preloadAround(this.index);
   }
 
@@ -102,6 +126,8 @@ export class SceneManager extends EventTarget {
         blockName: this.blockNames[cfg.blockId] || '',
         logoUrl: this.appConfig.general.logoUrl ? this.resolveUrl(this.appConfig.general.logoUrl) : '',
         resolveUrl: this.resolveUrl,
+        domLayer: this.domLayer,
+        attachKeys: this.attachKeys,
       });
       inst.init();
       inst.resize(this.width, this.height);
@@ -151,6 +177,8 @@ export class SceneManager extends EventTarget {
     this.pass.setup(type, dir);
     this.pass.setEdgeColor(this.sceneCfgs[target].color === '#FFD500' ? '#FFFFFF' : '#FFD500');
     to.enter();
+    from.leave(durationMs);
+    if (this.live) to.begin();
     const fromIndex = this.index;
     this.index = target;
     this.transition = { from, to, progress: 0, fromIndex, snapshot: false };
@@ -186,6 +214,7 @@ export class SceneManager extends EventTarget {
     const inst = this.instance(this.index);
     inst.render(this.renderer, this.snapshot);
     inst.restart();
+    if (this.live) inst.begin();
     const { type, durationMs } = this.transitionFor(this.index);
     this.pass.setup(type === 'wipe' ? 'fade' : type, 1);
     this.transition = { from: null, to: inst, progress: 0, fromIndex: this.index, snapshot: true };

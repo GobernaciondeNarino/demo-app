@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Película de prueba</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #7FF0C6; font: 600 6vh/1.2 system-ui, sans-serif; overflow: hidden; }
+  main { height: 100%; display: grid; place-items: center; text-align: center; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px; background: #222; color: #fff; font-size: 16px; }
+</style>
+</head>
+<body>
+<!-- Imita una «película» web como fagosEvo/: arranca sola al cargar y usa
+     Espacio (pausa) y flechas (±5 s). La usan las pruebas automáticas. -->
+<main><div>Película de prueba<br><span id="t">0.0 s</span></div></main>
+<div id="bar">Controles de la película</div>
+<script>
+  window.startedAt = Date.now();
+  window.keysReceived = [];
+  window.playing = true;
+  let T = 0, last = performance.now();
+  window.addEventListener('keydown', (e) => {
+    window.keysReceived.push(e.code);
+    if (e.code === 'Space') window.playing = !window.playing;
+    else if (e.code === 'ArrowRight') T += 5;
+    else if (e.code === 'ArrowLeft') T = Math.max(0, T - 5);
+  });
+  (function loop(now) {
+    if (window.playing) T += (now - last) / 1000;
+    last = now;
+    document.getElementById('t').textContent = `${T.toFixed(1)} s`;
+    requestAnimationFrame(loop);
+  })(performance.now());
+</script>
+</body>
+</html>

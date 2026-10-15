@@ -1,20 +1,25 @@
 /**
- * Escena con imagen o video del mismo hosting (wj-content/media/...).
- * Se usa en la Fase 2 para los enlaces que se configuran en el panel.
+ * Escena con imagen o video del mismo hosting (wj-content/media/... o una
+ * carpeta junto a la presentación).
+ *
+ * Al entrar muestra una tarjeta de presentación (color + título) y el contenido
+ * aparece y arranca después del retraso configurado («inicia N segundos después
+ * de cambiar o iniciar la escena»).
  */
 import { THREE } from '../core/three.js';
-import { BaseScene } from './BaseScene.js';
+import { BaseScene, Countdown } from './BaseScene.js';
 import { TextOverlay } from './TextOverlay.js';
-
-const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i;
+import { mediaKind } from './mediaKind.js';
 
 export class MediaScene extends BaseScene {
   init() {
     const cfg = this.cfg;
     const url = this.ctx.resolveUrl(cfg.media.url);
-    this.isVideo = VIDEO_EXT.test(cfg.media.url);
+    this.kind = mediaKind(cfg.media);
+    this.state = 'idle';
+    this.countdown = new Countdown();
+    this.reveal = 0;
 
-    this.scene.background = new THREE.Color(cfg.color || '#000000');
     this.mat = new THREE.ShaderMaterial({
       uniforms: {
         map: { value: null },
@@ -22,7 +27,7 @@ export class MediaScene extends BaseScene {
         screenAspect: { value: 16 / 9 },
         cover: { value: cfg.media.fit === 'contain' ? 0 : 1 },
         bg: { value: new THREE.Color(cfg.color || '#000000') },
-        loaded: { value: 0 },
+        reveal: { value: 0 },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -30,7 +35,7 @@ export class MediaScene extends BaseScene {
       `,
       fragmentShader: /* glsl */ `
         uniform sampler2D map; uniform float texAspect; uniform float screenAspect; uniform float cover;
-        uniform vec3 bg; uniform float loaded;
+        uniform vec3 bg; uniform float reveal;
         varying vec2 vUv;
         void main() {
           vec2 uv = vUv - 0.5;
@@ -43,8 +48,8 @@ export class MediaScene extends BaseScene {
           }
           uv += 0.5;
           vec3 col = bg;
-          if (loaded > 0.5 && uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
-            col = texture2D(map, uv).rgb;
+          if (reveal > 0.0 && uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+            col = mix(bg, texture2D(map, uv).rgb, reveal);
           }
           gl_FragColor = vec4(col, 1.0);
         }
@@ -56,18 +61,18 @@ export class MediaScene extends BaseScene {
     quad.frustumCulled = false;
     this.scene.add(quad);
 
+    // Tarjeta de presentación mientras corre la cuenta regresiva.
     this.overlay = new TextOverlay({
-      scene: { ...cfg, showNumber: false },
+      scene: cfg,
       index: this.ctx.index,
-      blockName: cfg.title ? this.ctx.blockName : '',
+      blockName: this.ctx.blockName,
       logoUrl: this.ctx.logoUrl,
-      scrim: true,
+      scrim: false,
     });
-    if (cfg.title || cfg.subtitle) this.scene.add(this.overlay.mesh);
+    this.scene.add(this.overlay.mesh);
 
-    this.ready = (this.isVideo ? this.loadVideo(url) : this.loadImage(url)).catch(async () => {
+    this.ready = (this.kind === 'video' ? this.loadVideo(url) : this.loadImage(url)).catch(async () => {
       this.error = 'No se pudo cargar el archivo multimedia.';
-      this.scene.add(this.overlay.mesh);
       await this.overlay.draw(this.width, this.height, this.error);
     });
   }
@@ -105,42 +110,78 @@ export class MediaScene extends BaseScene {
     this.texture = tex;
     this.mat.uniforms.map.value = tex;
     this.mat.uniforms.texAspect.value = aspect || 16 / 9;
-    this.mat.uniforms.loaded.value = 1;
-    if (this.active && this.video && !this.paused) this.video.play().catch(() => {});
+    if (this.state === 'playing') this.play();
   }
 
   enter() {
-    this.active = true;
     this.overlay.startReveal();
-    if (this.video) {
-      if (this.video.ended) this.video.currentTime = 0;
-      if (!this.paused) this.video.play().catch(() => {});
-    }
+  }
+
+  /** La presentación está en vivo en esta escena: arranca la cuenta regresiva. */
+  begin() {
+    const delay = this.cfg.media.startDelayMs ?? 5000;
+    if (delay <= 0) return this.startContent();
+    this.state = 'waiting';
+    this.countdown.start(delay);
+    if (this.paused) this.countdown.pause();
+  }
+
+  startContent() {
+    this.state = 'playing';
+    this.countdown.clear();
+    if (this.video) this.video.currentTime = 0;
+    this.play();
+  }
+
+  play() {
+    if (this.video && !this.paused && this.state === 'playing') this.video.play().catch(() => {});
   }
 
   exit() {
-    this.active = false;
+    this.state = 'idle';
+    this.countdown.clear();
+    this.reveal = 0;
+    this.mat.uniforms.reveal.value = 0;
+    this.overlay.material.uniforms.reveal.value = 1;
     this.video?.pause();
   }
 
   restart() {
+    this.exit();
     this.overlay.startReveal();
-    if (this.video) {
-      this.video.currentTime = 0;
-      if (!this.paused) this.video.play().catch(() => {});
-    }
   }
 
   setPaused(paused) {
     super.setPaused(paused);
-    if (!this.video || !this.active) return;
+    if (paused) this.countdown.pause();
+    else this.countdown.resume();
+    if (!this.video || this.state !== 'playing') return;
     if (paused) this.video.pause();
-    else this.video.play().catch(() => {});
+    else this.play();
   }
 
   update(dt) {
     super.update(dt);
-    this.overlay.update(dt);
+    if (this.state === 'waiting' && this.countdown.done) this.startContent();
+    // El contenido aparece (y la tarjeta se desvanece) en 0,8 s.
+    if (this.state === 'playing' && this.texture) {
+      if (this.reveal < 1) this.reveal = Math.min(1, this.reveal + dt / 0.8);
+      this.overlay.material.uniforms.reveal.value = 1 - this.reveal;
+    } else {
+      this.reveal = 0;
+      this.overlay.update(dt);
+    }
+    this.mat.uniforms.reveal.value = this.reveal;
+  }
+
+  mediaStatus() {
+    return {
+      kind: this.kind,
+      url: this.cfg.media.url,
+      state: this.state,
+      startsIn: this.state === 'waiting' ? Math.ceil((this.countdown.remainingMs ?? 0) / 1000) : null,
+      error: this.error || '',
+    };
   }
 
   resize(width, height) {
@@ -155,6 +196,7 @@ export class MediaScene extends BaseScene {
       this.video.removeAttribute('src');
       this.video.load();
     }
+    this.texture?.dispose();
     this.overlay.dispose();
     super.dispose();
   }

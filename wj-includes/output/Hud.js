@@ -54,6 +54,13 @@ export class Hud {
     el.title = `${base} — ${STATE_TEXT[state] || state}${detail ? ` (${detail})` : ''}`;
   }
 
+  /** Progreso (0–1) de un gesto que se está sosteniendo; 0 lo oculta. */
+  setGestureProgress(p) {
+    const el = this.icons.cam;
+    el.classList.toggle('is-holding', p > 0);
+    el.style.setProperty('--p', String(Math.min(1, Math.max(0, p))));
+  }
+
   setScene(index, total) {
     this.sceneEl.textContent = `${index + 1} / ${total}`;
   }

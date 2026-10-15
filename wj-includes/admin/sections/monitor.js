@@ -9,6 +9,12 @@ const STATUS_TEXT = {
   error: 'error', end: 'fin', unknown: 'no entendido', duplicate: 'duplicado',
 };
 const INPUT_TEXT = { on: 'activo', off: 'apagado', error: 'error', loading: 'cargando' };
+const MEDIA_STATE = { waiting: 'inicia en', loading: 'cargando', playing: 'en pantalla', idle: 'en espera' };
+
+function mediaText(m) {
+  const what = { web: 'Película', video: 'Video', image: 'Imagen' }[m.kind] || 'Contenido';
+  return `▶ ${what} «${m.url}»: ${MEDIA_STATE[m.state] || m.state}${m.state === 'waiting' && m.startsIn !== null ? ` ${m.startsIn} s` : ''}${m.error ? ` · ${m.error}` : ''}`;
+}
 
 export default {
   id: 'monitor',
@@ -43,6 +49,7 @@ export default {
         h('div', {},
           h('small', {}, `${s.scene?.blockName || ''} · escena ${s.index + 1} de ${s.total}`),
           h('strong', {}, s.scene?.title || '(sin título)'),
+          s.scene?.media ? h('small', {}, mediaText(s.scene.media)) : null,
           h('div', { class: 'flags' },
             s.paused ? h('span', { class: 'pill pill-warn' }, 'En pausa') : null,
             s.black ? h('span', { class: 'pill pill-off' }, 'Pantalla negra') : null,
